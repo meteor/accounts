@@ -1,0 +1,34 @@
+
+#login-buttons .login-header {
+  float: left;
+  padding-right: 2px;
+}
+
+
+#login-buttons .login-button {
+    float:left;
+    cursor: pointer;
+    margin-left: 8px;
+    padding: 1px 4px;
+    height: 20px;
+
+    font-size: 80%;
+    color: white;
+    text-shadow: #062C50 0px 1px 0px;
+
+    background: #19558D;
+    border: 1px solid #062C50;
+    border-top-color: #103372;
+    border-left-color: #103372;
+    border-radius: 3px;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    -o-border-radius: 3px;
+}
+
+#login-buttons .login-image {
+    float: left;
+    margin: 2px 5px 2px 0px;
+    width: 16px;
+    height: 16px;
+}
