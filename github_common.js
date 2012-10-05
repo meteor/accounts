@@ -1,7 +1,7 @@
-if (!Meteor.accounts.github) {
-	Meteor.accounts.github = {};
+if (!Accounts.github) {
+  Accounts.github = {};
 }
 
-Meteor.accounts.github.config = function(options) {
-	Meteor.accounts.github._options = options;
+Accounts.github.config = function(options) {
+  Accounts.github._options = options;
 };
