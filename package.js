@@ -2,7 +2,10 @@
 // binary modules aren't working yet).
 
 Package.describe({
-  summary: "Encrypt account secrets stored in the database"
+  name: "oauth-encryption",
+  test: "oauth-encryption-test",
+  summary: "Encrypt account secrets stored in the database",
+  version: '1.0.0'
 });
 
 Package.on_use(function (api) {
