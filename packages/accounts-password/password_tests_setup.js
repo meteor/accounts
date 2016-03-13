@@ -110,15 +110,20 @@ Meteor.methods({
   clearUsernameAndProfile: function () {
     if (!this.userId)
       throw new Error("Not logged in!");
+
+    Meteor.users.unsetProfile(this.userId);
+    /*
     Meteor.users.update(this.userId,
                         {$unset: {profile: 1, username: 1}});
+                        */
   },
 
   expireTokens: function () {
     Accounts._expireTokens(new Date(), this.userId);
   },
   removeUser: function (username) {
-    Meteor.users.remove({ "username": username });
+    // Meteor.users.remove({ "username": username });
+    Meteor.users.removeByUsername(username);
   }
 });
 
@@ -128,8 +133,16 @@ Meteor.methods({
 Meteor.methods({
   testCreateSRPUser: function () {
     var username = Random.id();
-    Meteor.users.remove({username: username});
+
+    Meteor.users.removeByUsername(username);
+
+    // Meteor.users.remove({username: username});
     var userId = Accounts.createUser({username: username});
+    Meteor.users.setSRP(userId, "iPNrshUEcpOSO5fRDu7o4RRDc9OJBCGGljYpcXCuyg9",
+        "Dk3lFggdEtcHU3aKm6Odx7sdcaIrMskQxBbqtBtFzt6",
+        "2e8bce266b1357edf6952cc56d979db19f699ced97edfb2854b95972f820b0c7006c1a18e98aad40edf3fe111b87c52ef7dd06b320ce452d01376df2d560fdc4d8e74f7a97bca1f67b3cfaef34dee34dd6c76571c247d762624dc166dab5499da06bc9358528efa75bf74e2e7f5a80d09e60acf8856069ae5cfb080f2239ee76"
+    );
+    /*
     Meteor.users.update(
       userId,
       { '$set': { 'services.password.srp': {
@@ -138,11 +151,14 @@ Meteor.methods({
           "verifier" : "2e8bce266b1357edf6952cc56d979db19f699ced97edfb2854b95972f820b0c7006c1a18e98aad40edf3fe111b87c52ef7dd06b320ce452d01376df2d560fdc4d8e74f7a97bca1f67b3cfaef34dee34dd6c76571c247d762624dc166dab5499da06bc9358528efa75bf74e2e7f5a80d09e60acf8856069ae5cfb080f2239ee76"
       } } }
     );
+    */
     return username;
   },
 
   testSRPUpgrade: function (username) {
-    var user = Meteor.users.findOne({username: username});
+    var user = Meteor.users.findByUsername(username);
+
+   // var user = Meteor.users.findOne({username: username});
     if (user.services && user.services.password && user.services.password.srp)
       throw new Error("srp wasn't removed");
     if (!(user.services && user.services.password && user.services.password.bcrypt))
@@ -150,7 +166,8 @@ Meteor.methods({
   },
 
   testNoSRPUpgrade: function (username) {
-    var user = Meteor.users.findOne({username: username});
+    // var user = Meteor.users.findOne({username: username});
+    var user = Meteor.users.findByUsername(username);
     if (user.services && user.services.password && user.services.password.bcrypt)
       throw new Error("bcrypt was added");
     if (user.services && user.services.password && ! user.services.password.srp)

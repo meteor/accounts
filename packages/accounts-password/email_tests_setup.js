@@ -45,9 +45,13 @@ Meteor.methods({
 
   addEmailForTestAndVerify: function (email) {
     check(email, String);
+
+    Meteor.users.addEmailVerified(this.userId, email, false);
+    /*
     Meteor.users.update(
       {_id: this.userId},
       {$push: {emails: {address: email, verified: false}}});
+      */
     Accounts.sendVerificationEmail(this.userId, email);
   },
 
@@ -55,6 +59,6 @@ Meteor.methods({
     check(email, String);
     var userId = Accounts.createUser({email: email});
     Accounts.sendEnrollmentEmail(userId);
-    return Meteor.users.findOne(userId);
+    return Meteor.users.findSingle(userId);
   }
 });
