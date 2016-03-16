@@ -168,6 +168,8 @@ should not require Meteor mastery.
 The work in Account Refactor should be consistent with the work 
 being concurrently done in the Apollo stack.
 
+##### Continue to [Account Refactor Design](account_design.md)
+
 
 
 
