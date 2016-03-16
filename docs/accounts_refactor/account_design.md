@@ -228,7 +228,7 @@ rapid customization.
 The work in Account Refactor is consistent with the current thinking 
 of the Apollo stack.
 
-
+##### Continue to [Accounts Refactor Implementation](account_implementation.md)
 
 
 
