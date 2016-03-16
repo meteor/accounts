@@ -17,7 +17,7 @@ It is divided into three distinct parts:
 
 ## Requirements
 
-[Why are we doing this, and what are we doing?](account_requirement.md)
+[Why are we doing this, and what are we doing?](account_requirements.md)
 
 ## Design
 
@@ -25,7 +25,7 @@ It is divided into three distinct parts:
 
 ## Implementation details
 
-[Describes the details of implementation, at the code components level.](account_implementation.md)_
+[Describes the details of implementation, at the code components level.](account_implementation.md)
 
 
 
