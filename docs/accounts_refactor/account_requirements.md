@@ -25,10 +25,11 @@ on this directional shift, scheduled to occur throughout 2016.
 
 [![Transmission - Future of Meteor with CEO Geoff Schmidt, March 2, 2016](https://raw.githubusercontent.com/Sing-Li/bbug/master/images/geofftalk.png)]( https://www.youtube.com/watch?v=wylWt-RxYiQ)
 
-As expressed in the above talks, the transition will be occuring
-**incrementally**; allowing exsiting application to migrate one piece
+As indicated in the above talks, the transition will be occuring
+**incrementally**; allowing exsiting applications to migrate one piece
 at a time, **side-by-side**.
 
+> "Change will be incremental, side-by-side."
 
 ## Architectural Shift
 
