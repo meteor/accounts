@@ -13,6 +13,16 @@ import {AccountsCommon} from "./accounts_common.js";
 export class AccountsClient extends AccountsCommon {
   constructor(options) {
     super(options);
+    this._initConnection(options || {});
+
+    // There is an allow call in accounts_server.js that restricts writes to
+    // this collection.
+    this.users = new Mongo.Collection("users", {
+      _preventAutopublish: true,
+      connection: this.connection
+    });
+
+
 
     this._loggingIn = false;
     this._loggingInDeps = new Tracker.Dependency;
@@ -38,6 +48,50 @@ export class AccountsClient extends AccountsCommon {
   userId() {
     return this.connection.userId();
   }
+
+  /**
+   * @summary Get the current user record, or `null` if no user is logged in. A reactive data source.
+   * @locus Anywhere but publish functions
+   */
+  user(){
+    var userId = this.userId();
+    return userId ? this.users.findOne(userId) : null;
+  }
+
+
+  _initConnection(options) {
+    if (! Meteor.isClient) {
+      return;
+    }
+
+    // The connection used by the Accounts system. This is the connection
+    // that will get logged in by Meteor.login(), and this is the
+    // connection whose login state will be reflected by Meteor.userId().
+    //
+    // It would be much preferable for this to be in accounts_client.js,
+    // but it has to be here because it's needed to create the
+    // Meteor.users collection.
+
+    if (options.connection) {
+      this.connection = options.connection;
+    } else if (options.ddpUrl) {
+      this.connection = DDP.connect(options.ddpUrl);
+    } else if (typeof __meteor_runtime_config__ !== "undefined" &&
+        __meteor_runtime_config__.ACCOUNTS_CONNECTION_URL) {
+      // Temporary, internal hook to allow the server to point the client
+      // to a different authentication server. This is for a very
+      // particular use case that comes up when implementing a oauth
+      // server. Unsupported and may go away at any point in time.
+      //
+      // We will eventually provide a general way to use account-base
+      // against any DDP connection, not just one special one.
+      this.connection =
+          DDP.connect(__meteor_runtime_config__.ACCOUNTS_CONNECTION_URL);
+    } else {
+      this.connection = Meteor.connection;
+    }
+  }
+
 
   // This is mostly just called within this file, but Meteor.loginWithPassword
   // also uses it to make loggingIn() be true during the beginPasswordExchange
@@ -132,6 +186,7 @@ var Ap = AccountsClient.prototype;
 /**
  * @summary True if a login method (such as `Meteor.loginWithPassword`, `Meteor.loginWithFacebook`, or `Accounts.createUser`) is currently in progress. A reactive data source.
  * @locus Client
+ * @importFromPackage meteor
  */
 Meteor.loggingIn = function () {
   return Accounts.loggingIn();
@@ -332,6 +387,7 @@ Ap.makeClientLoggedIn = function (userId, token, tokenExpires) {
  * @summary Log the user out.
  * @locus Client
  * @param {Function} [callback] Optional callback. Called with no arguments on success, or with a single `Error` argument on failure.
+ * @importFromPackage meteor
  */
 Meteor.logout = function (callback) {
   return Accounts.logout(callback);
@@ -341,6 +397,7 @@ Meteor.logout = function (callback) {
  * @summary Log out other clients logged in as the current user, but does not log out the client that calls this function.
  * @locus Client
  * @param {Function} [callback] Optional callback. Called with no arguments on success, or with a single `Error` argument on failure.
+ * @importFromPackage meteor
  */
 Meteor.logoutOtherClients = function (callback) {
   return Accounts.logoutOtherClients(callback);

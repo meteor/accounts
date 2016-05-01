@@ -1,12 +1,23 @@
 import {AccountsServer} from "./accounts_server.js";
 import "./accounts_rate_limit.js";
 import "./url_server.js";
+import {AccountsProvider} from "./accounts_provider";
+
+
 
 /**
  * @namespace Accounts
  * @summary The namespace for all server-side accounts-related methods.
  */
 Accounts = new AccountsServer(Meteor.server);
+
+// TODO: determine how server-aware and backward compatible code should work
+//       How does server-aware code get an instance of accountsProvider?
+//       How does backward compatible code access accountsProvider through users?
+//       Do we need to make Meteor.users abstract?
+//       Do we need to add Meteor.accountsProvider global?
+//
+
 
 // Users table. Don't use the normal autopublish, since we want to hide
 // some fields. Code to autopublish this is in accounts_server.js.
@@ -16,8 +27,9 @@ Accounts = new AccountsServer(Meteor.server);
  * @summary A [Mongo.Collection](#collections) containing user documents.
  * @locus Anywhere
  * @type {Mongo.Collection}
- */
-Meteor.users = Accounts.users;
+ * @importFromPackage meteor
+*/
+Meteor.users = Accounts.accountsProvider;  //Accounts.users;
 
 export {
   // Since this file is the main module for the server version of the

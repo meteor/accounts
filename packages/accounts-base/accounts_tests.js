@@ -4,6 +4,7 @@ Meteor.methods({
   }
 });
 
+
 // XXX it'd be cool to also test that the right thing happens if options
 // *are* validated, but Accounts._options is global state which makes this hard
 // (impossible?)
@@ -20,6 +21,7 @@ Accounts.validateNewUser(function (user) {
   return true;
 });
 
+
 Tinytest.add('accounts - validateNewUser gets passed user with _id', function (test) {
   var newUserId = Accounts.updateOrCreateUserFromExternalService('foobook', {id: Random.id()}).userId;
   test.isTrue(newUserId in idsInValidateNewUser);
@@ -31,7 +33,8 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Facebook', func
   // create an account with facebook
   var uid1 = Accounts.updateOrCreateUserFromExternalService(
     'facebook', {id: facebookId, monkey: 42}, {profile: {foo: 1}}).id;
-  var users = Meteor.users.find({"services.facebook.id": facebookId}).fetch();
+ //  var users = Meteor.users.find({"services.facebook.id": facebookId}).fetch();
+    var users = Meteor.users.findUsersByService({"services.facebook.id": facebookId});
   test.length(users, 1);
   test.equal(users[0].profile.foo, 1);
   test.equal(users[0].services.facebook.monkey, 42);
@@ -42,7 +45,7 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Facebook', func
     'facebook', {id: facebookId, llama: 50},
     {profile: {foo: 1000, bar: 2}}).id;
   test.equal(uid1, uid2);
-  users = Meteor.users.find({"services.facebook.id": facebookId}).fetch();
+  users = Meteor.users.findUsersByService({"services.facebook.id": facebookId});
   test.length(users, 1);
   test.equal(users[0].profile.foo, 1);
   test.equal(users[0].profile.bar, undefined);
@@ -52,7 +55,7 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Facebook', func
   test.equal(users[0].services.facebook.monkey, 42);
 
   // cleanup
-  Meteor.users.remove(uid1);
+  Meteor.users.removeById(uid1);
 });
 
 Tinytest.add('accounts - updateOrCreateUserFromExternalService - Weibo', function (test) {
@@ -64,16 +67,19 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Weibo', functio
     'weibo', {id: weiboId1}, {profile: {foo: 1}}).id;
   var uid2 = Accounts.updateOrCreateUserFromExternalService(
     'weibo', {id: weiboId2}, {profile: {bar: 2}}).id;
-  test.equal(Meteor.users.find({"services.weibo.id": {$in: [weiboId1, weiboId2]}}).count(), 2);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId1}).profile.foo, 1);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId1}).emails, undefined);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId2}).profile.bar, 2);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId2}).emails, undefined);
+    var users = Meteor.users.findUsersInServices([weiboId1, weiboId2]);
+  test.equal(users.count(), 2);
+  //  console.log(JSON.stringify(Meteor.users.findUsersByService({"services.weibo.id": weiboId1})));
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId1})[0].profile.foo, 1);
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId1})[0].emails, undefined);
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId2})[0].profile.bar, 2);
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId2})[0].emails, undefined);
 
-  // cleanup
-  Meteor.users.remove(uid1);
-  Meteor.users.remove(uid2);
+  // cleanupr
+  Meteor.users.removeById(uid1);
+  Meteor.users.removeById(uid2);
 });
+
 
 Tinytest.add('accounts - updateOrCreateUserFromExternalService - Twitter', function (test) {
   var twitterIdOld = parseInt(Random.hexString(4), 16);
@@ -82,7 +88,7 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Twitter', funct
   // create an account with twitter using the old ID format of integer
   var uid1 = Accounts.updateOrCreateUserFromExternalService(
     'twitter', {id: twitterIdOld, monkey: 42}, {profile: {foo: 1}}).id;
-  var users = Meteor.users.find({"services.twitter.id": twitterIdOld}).fetch();
+  var users = Meteor.users.findUsersByService({"services.twitter.id": twitterIdOld});
   test.length(users, 1);
   test.equal(users[0].profile.foo, 1);
   test.equal(users[0].services.twitter.monkey, 42);
@@ -93,11 +99,11 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Twitter', funct
   var uid2 = Accounts.updateOrCreateUserFromExternalService(
     'twitter', {id: twitterIdNew, monkey: 42}, {profile: {foo: 1}}).id;
   test.equal(uid1, uid2);
-  users = Meteor.users.find({"services.twitter.id": twitterIdNew}).fetch();
+  users = Meteor.users.findUsersByService({"services.twitter.id": twitterIdNew});
   test.length(users, 1);
 
   // cleanup
-  Meteor.users.remove(uid1);
+  Meteor.users.removeById(uid1);
 });
 
 
@@ -111,7 +117,7 @@ Tinytest.add('accounts - insertUserDoc username', function (test) {
     {profile: {name: 'Foo Bar'}},
     userIn
   );
-  var userOut = Meteor.users.findOne(userId);
+  var userOut = Meteor.users.findById(userId);
 
   test.equal(typeof userOut.createdAt, 'object');
   test.equal(userOut.profile.name, 'Foo Bar');
@@ -126,7 +132,7 @@ Tinytest.add('accounts - insertUserDoc username', function (test) {
   }, 'Username already exists.');
 
   // cleanup
-  Meteor.users.remove(userId);
+  Meteor.users.removeById(userId);
 });
 
 Tinytest.add('accounts - insertUserDoc email', function (test) {
@@ -143,7 +149,7 @@ Tinytest.add('accounts - insertUserDoc email', function (test) {
     {profile: {name: 'Foo Bar'}},
     userIn
   );
-  var userOut = Meteor.users.findOne(userId);
+  var userOut = Meteor.users.findById(userId);
 
   test.equal(typeof userOut.createdAt, 'object');
   test.equal(userOut.profile.name, 'Foo Bar');
@@ -176,12 +182,12 @@ Tinytest.add('accounts - insertUserDoc email', function (test) {
   var userId3 = Accounts.insertUserDoc(
       {}, {emails: [{address: email3}]}
   );
-  var user3 = Meteor.users.findOne(userId3);
+  var user3 = Meteor.users.findById(userId3);
   test.equal(typeof user3.createdAt, 'object');
 
   // cleanup
-  Meteor.users.remove(userId);
-  Meteor.users.remove(userId3);
+  Meteor.users.removeById(userId);
+  Meteor.users.removeById(userId3);
 });
 
 // More token expiration tests are in accounts-password
@@ -191,18 +197,17 @@ Tinytest.addAsync('accounts - expire numeric token', function (test, onComplete)
     name: 'Foo Bar'
   } }, userIn);
   var date = new Date(new Date() - 5000);
-  Meteor.users.update(userId, {
-    $set: {
-      "services.resume.loginTokens": [{
+
+  Meteor.users.setResumeTokens(userId,  [{
         hashedToken: Random.id(),
         when: date
       }, {
         hashedToken: Random.id(),
         when: +date
-      }]
-    }
-  });
-  var observe = Meteor.users.find(userId).observe({
+      }]);
+
+  var reactiveUsers = Meteor.users.getMongoUsersForReactiveWork();
+  var observe = reactiveUsers.find(userId).observe({
     changed: function (newUser) {
       if (newUser.services && newUser.services.resume &&
           _.isEmpty(newUser.services.resume.loginTokens)) {
@@ -215,21 +220,24 @@ Tinytest.addAsync('accounts - expire numeric token', function (test, onComplete)
 });
 
 
+
 // Login tokens used to be stored unhashed in the database.  We want
 // to make sure users can still login after upgrading.
 var insertUnhashedLoginToken = function (userId, stampedToken) {
-  Meteor.users.update(
-    userId,
-    {$push: {'services.resume.loginTokens': stampedToken}}
+  Meteor.users.insertLoginToken(
+    userId, stampedToken
   );
 };
-
+// reactive test
 Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // Test that we can login when the database contains a leftover
   // old style unhashed login token.
   var userId1 = Accounts.insertUserDoc({}, {username: Random.id()});
+  //  console.log("userId1 is " + userId1);
   var stampedToken = Accounts._generateStampedLoginToken();
+  //  console.log("stampedToken is " + JSON.stringify(stampedToken));
   insertUnhashedLoginToken(userId1, stampedToken);
+
   var connection = DDP.connect(Meteor.absoluteUrl());
   connection.call('login', {resume: stampedToken.token});
   connection.disconnect();
@@ -239,7 +247,8 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // stolen *hashed* token, we know it's not a problem with the test.
   var userId2 = Accounts.insertUserDoc({}, {username: Random.id()});
   insertUnhashedLoginToken(userId2, Accounts._generateStampedLoginToken());
-  var stolenToken = Meteor.users.findOne(userId2).services.resume.loginTokens[0].token;
+
+  var stolenToken = Meteor.users.findById(userId2).services.resume.loginTokens[0].token;
   test.isTrue(stolenToken);
   connection = DDP.connect(Meteor.absoluteUrl());
   connection.call('login', {resume: stolenToken});
@@ -248,7 +257,7 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // Now do the same thing, this time with a stolen hashed token.
   var userId3 = Accounts.insertUserDoc({}, {username: Random.id()});
   Accounts._insertLoginToken(userId3, Accounts._generateStampedLoginToken());
-  stolenToken = Meteor.users.findOne(userId3).services.resume.loginTokens[0].hashedToken;
+  stolenToken = Meteor.users.findById(userId3).services.resume.loginTokens[0].hashedToken;
   test.isTrue(stolenToken);
   connection = DDP.connect(Meteor.absoluteUrl());
   // evil plan foiled
@@ -271,7 +280,7 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   connection.disconnect();
 
   // The token is no longer available to be stolen.
-  stolenToken = Meteor.users.findOne(userId4).services.resume.loginTokens[0].token;
+  stolenToken = Meteor.users.findById(userId4).services.resume.loginTokens[0].token;
   test.isFalse(stolenToken);
 
   // After the upgrade, the client can still login with their original
@@ -304,6 +313,7 @@ Tinytest.addAsync(
   }
 );
 
+// reactive test
 Tinytest.add(
   'accounts - get new token',
   function (test) {
@@ -331,49 +341,56 @@ Tinytest.add(
     secondConn.disconnect();
   }
 );
-
+// reactive test
 Tinytest.addAsync(
   'accounts - remove other tokens',
   function (test, onComplete) {
-    // Test that the `removeOtherTokens` method removes all tokens other
-    // than the caller's token, thereby logging out and closing other
-    // connections.
-    var userId = Accounts.insertUserDoc({}, { username: Random.id() });
-    var stampedTokens = [];
-    var conns = [];
+      // Test that the `removeOtherTokens` method removes all tokens other
+      // than the caller's token, thereby logging out and closing other
+      // connections.
+      var userId = Accounts.insertUserDoc({}, {username: Random.id()});
 
-    _.times(2, function (i) {
-      stampedTokens.push(Accounts._generateStampedLoginToken());
-      Accounts._insertLoginToken(userId, stampedTokens[i]);
-      var conn = DDP.connect(Meteor.absoluteUrl());
-      conn.call('login', { resume: stampedTokens[i].token });
-      test.equal(conn.call('getCurrentLoginToken'),
-                 Accounts._hashLoginToken(stampedTokens[i].token));
-      conns.push(conn);
-    });
+      //console.log(JSON.stringify(userId));
+      var stampedTokens = [];
+      var conns = [];
 
-    conns[0].call('removeOtherTokens');
-    simplePoll(
-      function () {
-        var tokens = _.map(conns, function (conn) {
-          return conn.call('getCurrentLoginToken');
-        });
-        return ! tokens[1] &&
-          tokens[0] === Accounts._hashLoginToken(stampedTokens[0].token);
-      },
-      function () { // success
-        _.each(conns, function (conn) {
-          conn.disconnect();
-        });
-        onComplete();
-      },
-      function () { // timed out
-        throw new Error("accounts - remove other tokens timed out");
-      }
-    );
+
+      _.times(2, function (i) {
+          stampedTokens.push(Accounts._generateStampedLoginToken());
+
+          Accounts._insertLoginToken(userId, stampedTokens[i]);
+          var conn = DDP.connect(Meteor.absoluteUrl());
+          //console.log("stampedTokens " + JSON.stringify(stampedTokens));
+          conn.call('login', {resume: stampedTokens[i].token});
+          test.equal(conn.call('getCurrentLoginToken'),
+              Accounts._hashLoginToken(stampedTokens[i].token));
+          conns.push(conn);
+      });
+
+       conns[0].call('removeOtherTokens');
+
+       simplePoll(
+       function () {
+       var tokens = _.map(conns, function (conn) {
+       return conn.call('getCurrentLoginToken');
+       });
+       return ! tokens[1] &&
+       tokens[0] === Accounts._hashLoginToken(stampedTokens[0].token);
+       },
+       function () { // success
+       _.each(conns, function (conn) {
+       conn.disconnect();
+       });
+       onComplete();
+       },
+       function () { // timed out
+       throw new Error("accounts - remove other tokens timed out");
+       }
+       );
+
   }
 );
-
+//reactive test
 Tinytest.add(
   'accounts - hook callbacks can access Meteor.userId()',
   function (test) {
@@ -388,6 +405,7 @@ Tinytest.add(
     var onLoginStopper = Accounts.onLogin(function(attempt) {
       test.equal(Meteor.userId(), onLoginExpectedUserId, "onLogin");
     });
+
     var onLoginFailureStopper = Accounts.onLoginFailure(function(attempt) {
       test.equal(Meteor.userId(), onLoginFailureExpectedUserId, "onLoginFailure");
     });

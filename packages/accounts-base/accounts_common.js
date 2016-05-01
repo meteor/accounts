@@ -7,7 +7,15 @@
  * - connection {Object} Optional DDP connection to reuse.
  * - ddpUrl {String} Optional URL for creating a new DDP connection.
  */
+
+  
+//import {AccountsProvider} from './accounts_provider';
+
 export class AccountsCommon {
+  // AccountsCommon no longer depend on a DDP connection or AccountsProvider
+  // Concrete Subclass AccountsClient will manage client side DDP connection
+  // Concrete Subclass AccountsServer will manage AccountsProvider instance(s)
+  
   constructor(options) {
     // Currently this is read directly by packages like accounts-password
     // and accounts-ui-unstyled.
@@ -16,14 +24,19 @@ export class AccountsCommon {
     // Note that setting this.connection = null causes this.users to be a
     // LocalCollection, which is not what we want.
     this.connection = undefined;
-    this._initConnection(options || {});
+//    this._initConnection(options || {});
 
     // There is an allow call in accounts_server.js that restricts writes to
     // this collection.
+
+/*
     this.users = new Mongo.Collection("users", {
       _preventAutopublish: true,
       connection: this.connection
     });
+*/
+
+//    this.users = new AccountsProvider(this.connection);
 
     // Callback exceptions are printed with Meteor._debug and ignored.
     this._onLoginHook = new Hook({
@@ -49,11 +62,12 @@ export class AccountsCommon {
    * @summary Get the current user record, or `null` if no user is logged in. A reactive data source.
    * @locus Anywhere but publish functions
    */
+  /*
   user() {
     var userId = this.userId();
-    return userId ? this.users.findOne(userId) : null;
+    return userId ? this.users.findSingle(userId) : null;
   }
-
+*/
   // Set up config for the accounts system. Call this on both the client
   // and the server.
   //
@@ -155,7 +169,7 @@ export class AccountsCommon {
   onLoginFailure(func) {
     return this._onLoginFailureHook.register(func);
   }
-
+/*
   _initConnection(options) {
     if (! Meteor.isClient) {
       return;
@@ -188,7 +202,7 @@ export class AccountsCommon {
       this.connection = Meteor.connection;
     }
   }
-
+*/
   _getTokenLifetimeMs() {
     return (this._options.loginExpirationInDays ||
             DEFAULT_LOGIN_EXPIRATION_DAYS) * 24 * 60 * 60 * 1000;
@@ -217,6 +231,7 @@ var Ap = AccountsCommon.prototype;
 /**
  * @summary Get the current user id, or `null` if no user is logged in. A reactive data source.
  * @locus Anywhere but publish functions
+ * @importFromPackage meteor
  */
 Meteor.userId = function () {
   return Accounts.userId();
@@ -225,10 +240,12 @@ Meteor.userId = function () {
 /**
  * @summary Get the current user record, or `null` if no user is logged in. A reactive data source.
  * @locus Anywhere but publish functions
+ * @importFromPackage meteor
  */
 Meteor.user = function () {
   return Accounts.user();
 };
+
 
 // how long (in days) until a login token expires
 var DEFAULT_LOGIN_EXPIRATION_DAYS = 90;
