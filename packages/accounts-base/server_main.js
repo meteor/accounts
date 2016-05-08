@@ -15,7 +15,7 @@ Accounts = new AccountsServer(Meteor.server);
 //       How does server-aware code get an instance of accountsProvider?
 //       How does backward compatible code access accountsProvider through users?
 //       Do we need to make Meteor.users abstract?
-//       Do we need to add Meteor.accountsProvider global?
+//       Do we need to add Meteor.dataProvider global?
 //
 
 
@@ -30,6 +30,7 @@ Accounts = new AccountsServer(Meteor.server);
  * @importFromPackage meteor
 */
 Meteor.users = Accounts.accountsProvider;  //Accounts.users;
+Meteor.dataProvider = Accounts.accountsProvider;
 
 export {
   // Since this file is the main module for the server version of the

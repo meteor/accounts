@@ -45,8 +45,9 @@ Meteor.methods({
 
   addEmailForTestAndVerify: function (email) {
     check(email, String);
-
-    Meteor.users.addEmailVerified(this.userId, email, false);
+    
+    // only called from server-side
+    Meteor.dataProvider.addEmailVerified(this.userId, email, false);
     /*
     Meteor.users.update(
       {_id: this.userId},
@@ -59,6 +60,6 @@ Meteor.methods({
     check(email, String);
     var userId = Accounts.createUser({email: email});
     Accounts.sendEnrollmentEmail(userId);
-    return Meteor.users.findById(userId);
+    return Meteor.dataProvider.findById(userId);
   }
 });
