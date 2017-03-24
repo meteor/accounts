@@ -1423,7 +1423,7 @@ function setupUsersCollection(users) {
   users._ensureIndex('services.resume.haveLoginTokensToDelete',
                      { sparse: 1 });
   // For expiring login tokens
-  users._ensureIndex("services.resume.loginTokens.when", { sparse: 1 });
+  users._ensureIndex('services.resume.loginTokens.when', { sparse: 1 });
 }
 
 ///
