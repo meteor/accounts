@@ -1,4 +1,5 @@
-## 🚨 These are not the official Meteor accounts and not the correct place to report issues! 🚨
+## 🚨 These are not the official "Meteor Accounts" packages 🚨
+### 🚫 This is not the correct place to report issues! 🚫 ###
 
 The official Meteor Accounts packages are stored and officially supported via [the main Meteor repository](https://github.com/meteor/meteor/tree/devel/packages/) where they can be found in their respective `accounts-<service>` folders.
 
