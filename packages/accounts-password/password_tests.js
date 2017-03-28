@@ -5,7 +5,7 @@ if (Meteor.isServer) {
   
   Meteor.methods({
     getResetToken: function () {
-      var token = Meteor.users.findOne(this.userId).services.password.reset;
+      var token = Meteor.dataProvider.findById(this.userId).services.password.reset;
       return token;
     },
     addSkipCaseInsensitiveChecksForTest: function (value) {
@@ -15,7 +15,7 @@ if (Meteor.isServer) {
       delete Accounts._skipCaseInsensitiveChecksForTest[value];
     },
     countUsersOnServer: function (query) {
-      return Meteor.users.find(query).count();
+      return Meteor.dataProvider.findBySelector(query).count();
     }
   });
 }
@@ -636,6 +636,8 @@ if (Meteor.isClient) (function () {
     }
   ]);
 
+
+  // nature of following test requires explict awareness of client or server side calling
   testAsyncMulti("passwords - allow rules", [
     // create a second user to have an id for in a later test
     function (test, expect) {
@@ -666,40 +668,75 @@ if (Meteor.isClient) (function () {
       test.notEqual(this.userId, null);
       test.notEqual(this.userId, this.otherUserId);
       // Can't update fields other than profile.
-      Meteor.users.update(
-        this.userId, {$set: {disallowed: true, 'profile.updated': 42}},
-        expect(function (err) {
-          test.isTrue(err);
-          test.equal(err.error, 403);
-          test.isFalse(_.has(Meteor.user(), 'disallowed'));
-          test.isFalse(_.has(Meteor.user().profile, 'updated'));
-        }));
+
+      if (Meteor.isServer) {   // via AccountsProvider
+        Meteor.dataProvider.updateDisallowedAndProfile(this.userId, true, 42,
+            expect(function (err) {
+              test.isTrue(err);
+              test.equal(err.error, 403);
+              test.isFalse(_.has(Meteor.user(), 'disallowed'));
+              test.isFalse(_.has(Meteor.user().profile, 'updated'));
+            })
+        );
+      } else {  // via MiniMongo
+        Meteor.users.update(
+            this.userId, {$set: {disallowed: true, 'profile.updated': 42}},
+            expect(function (err) {
+              test.isTrue(err);
+              test.equal(err.error, 403);
+              test.isFalse(_.has(Meteor.user(), 'disallowed'));
+              test.isFalse(_.has(Meteor.user().profile, 'updated'));
+            }));
+      }
     },
     function(test, expect) {
       // Can't update another user.
-      Meteor.users.update(
-        this.otherUserId, {$set: {'profile.updated': 42}},
-        expect(function (err) {
-          test.isTrue(err);
-          test.equal(err.error, 403);
-        }));
+      if (Meteor.isServer) {  // via AccountsProvider
+        Meteor.dataProvider.updateProfile(this.otherUserId, 42,
+            expect(function (err) {
+              test.isTrue(err);
+              test.equal(err.error, 403);
+            })
+        );
+      } else {  // via MiniMongo
+        Meteor.users.update(
+            this.otherUserId, {$set: {'profile.updated': 42}},
+            expect(function (err) {
+              test.isTrue(err);
+              test.equal(err.error, 403);
+            }));
+      }
     },
     function(test, expect) {
       // Can't update using a non-ID selector. (This one is thrown client-side.)
       test.throws(function () {
-        Meteor.users.update(
-          {username: this.username}, {$set: {'profile.updated': 42}});
+        if (Meteor.isServer) { // via AccountsProvider
+          Meteor.dataProvider.updateProfileByUsername(this.username, 42);
+        } else {  // via MiniMongo
+          Meteor.users.update(
+              {username: this.username}, {$set: {'profile.updated': 42}});
+        }
       });
       test.isFalse(_.has(Meteor.user().profile, 'updated'));
     },
     function(test, expect) {
       // Can update own profile using ID.
-      Meteor.users.update(
-        this.userId, {$set: {'profile.updated': 42}},
-        expect(function (err) {
-          test.isFalse(err);
-          test.equal(42, Meteor.user().profile.updated);
-        }));
+      if (Meteor.isServer) {
+        Meteor.dataProvider.updateProfile(this.userId, 42,
+            expect(function (err) {
+              test.isFalse(err);
+              test.equal(42, Meteor.user().profile.updated);
+            })
+        );
+      } else {
+
+        Meteor.users.update(
+            this.userId, {$set: {'profile.updated': 42}},
+            expect(function (err) {
+              test.isFalse(err);
+              test.equal(42, Meteor.user().profile.updated);
+            }));
+      }
     },
     logoutStep
   ]);
@@ -1192,10 +1229,26 @@ if (Meteor.isServer) (function () {
                                         testOnCreateUserHook: true});
 
       test.isTrue(userId);
-      var user = Meteor.users.findOne(userId);
+      var user = Meteor.dataProvider.findById(userId);
       test.equal(user.profile.touchedByOnCreateUser, true);
     });
 
+  Tinytest.add(
+      'passwords - compatibility with mongo provider - createUser hooks',
+      function (test) {
+        var username = Random.id();
+        test.throws(function () {
+          // should fail the new user validators
+          Accounts.createUser({username: username, profile: {invalid: true}});
+        });
+
+        var userId = Accounts.createUser({username: username,
+          testOnCreateUserHook: true});
+
+        test.isTrue(userId);
+        var user = Meteor.users.findById(userId);
+        test.equal(user.profile.touchedByOnCreateUser, true);
+      });
 
   Tinytest.add(
     'passwords - setPassword',
@@ -1205,13 +1258,13 @@ if (Meteor.isServer) (function () {
 
       var userId = Accounts.createUser({username: username, email: email});
 
-      var user = Meteor.users.findOne(userId);
+      var user = Meteor.dataProvider.findById(userId);
       // no services yet.
       test.equal(user.services.password, undefined);
 
       // set a new password.
       Accounts.setPassword(userId, 'new password');
-      user = Meteor.users.findOne(userId);
+      user = Meteor.dataProvider.findById(userId);
       var oldSaltedHash = user.services.password.bcrypt;
       test.isTrue(oldSaltedHash);
 
@@ -1219,35 +1272,85 @@ if (Meteor.isServer) (function () {
       // token.
       Accounts.sendResetPasswordEmail(userId, email);
       Accounts._insertLoginToken(userId, Accounts._generateStampedLoginToken());
-      test.isTrue(Meteor.users.findOne(userId).services.password.reset);
-      test.isTrue(Meteor.users.findOne(userId).services.resume.loginTokens);
+      test.isTrue(Meteor.dataProvider.findById(userId).services.password.reset);
+      test.isTrue(Meteor.dataProvider.findById(userId).services.resume.loginTokens);
 
       // reset with the same password, see we get a different salted hash
       Accounts.setPassword(userId, 'new password', {logout: false});
-      user = Meteor.users.findOne(userId);
+      user = Meteor.dataProvider.findById(userId);
       var newSaltedHash = user.services.password.bcrypt;
       test.isTrue(newSaltedHash);
       test.notEqual(oldSaltedHash, newSaltedHash);
       // No more reset token.
-      test.isFalse(Meteor.users.findOne(userId).services.password.reset);
+      test.isFalse(Meteor.dataProvider.findById(userId).services.password.reset);
       // But loginTokens are still here since we did logout: false.
-      test.isTrue(Meteor.users.findOne(userId).services.resume.loginTokens);
+      test.isTrue(Meteor.dataProvider.findById(userId).services.resume.loginTokens);
 
       // reset again, see that the login tokens are gone.
       Accounts.setPassword(userId, 'new password');
-      user = Meteor.users.findOne(userId);
+      user = Meteor.dataProvider.findById(userId);
       var newerSaltedHash = user.services.password.bcrypt;
       test.isTrue(newerSaltedHash);
       test.notEqual(oldSaltedHash, newerSaltedHash);
       test.notEqual(newSaltedHash, newerSaltedHash);
       // No more tokens.
-      test.isFalse(Meteor.users.findOne(userId).services.password.reset);
-      test.isFalse(Meteor.users.findOne(userId).services.resume.loginTokens);
+      test.isFalse(Meteor.dataProvider.findById(userId).services.password.reset);
+      test.isFalse(Meteor.dataProvider.findById(userId).services.resume.loginTokens);
 
       // cleanup
-      Meteor.users.remove(userId);
+      Meteor.dataProvider.removeById(userId);
     });
 
+  Tinytest.add(
+      'passwords - compatibility with mongo provider - setPassword',
+      function (test) {
+        var username = Random.id();
+        var email = username + '-intercept@example.com';
+
+        var userId = Accounts.createUser({username: username, email: email});
+
+        var user = Meteor.users.findById(userId);
+        // no services yet.
+        test.equal(user.services.password, undefined);
+
+        // set a new password.
+        Accounts.setPassword(userId, 'new password');
+        user = Meteor.users.findById(userId);
+        var oldSaltedHash = user.services.password.bcrypt;
+        test.isTrue(oldSaltedHash);
+
+        // Send a reset password email (setting a reset token) and insert a login
+        // token.
+        Accounts.sendResetPasswordEmail(userId, email);
+        Accounts._insertLoginToken(userId, Accounts._generateStampedLoginToken());
+        test.isTrue(Meteor.users.findById(userId).services.password.reset);
+        test.isTrue(Meteor.users.findById(userId).services.resume.loginTokens);
+
+        // reset with the same password, see we get a different salted hash
+        Accounts.setPassword(userId, 'new password', {logout: false});
+        user = Meteor.users.findById(userId);
+        var newSaltedHash = user.services.password.bcrypt;
+        test.isTrue(newSaltedHash);
+        test.notEqual(oldSaltedHash, newSaltedHash);
+        // No more reset token.
+        test.isFalse(Meteor.users.findById(userId).services.password.reset);
+        // But loginTokens are still here since we did logout: false.
+        test.isTrue(Meteor.users.findById(userId).services.resume.loginTokens);
+
+        // reset again, see that the login tokens are gone.
+        Accounts.setPassword(userId, 'new password');
+        user = Meteor.users.findById(userId);
+        var newerSaltedHash = user.services.password.bcrypt;
+        test.isTrue(newerSaltedHash);
+        test.notEqual(oldSaltedHash, newerSaltedHash);
+        test.notEqual(newSaltedHash, newerSaltedHash);
+        // No more tokens.
+        test.isFalse(Meteor.users.findById(userId).services.password.reset);
+        test.isFalse(Meteor.users.findById(userId).services.resume.loginTokens);
+
+        // cleanup
+        Meteor.users.removeById(userId);
+      });
 
   // This test properly belongs in accounts-base/accounts_tests.js, but
   // this is where the tests that actually log in are.
@@ -1321,7 +1424,7 @@ if (Meteor.isServer) (function () {
         password: "old-password"
       });
 
-      var user = Meteor.users.findOne(userId);
+      var user = Meteor.dataProvider.findById(userId);
 
       Accounts.sendResetPasswordEmail(userId, email);
 
@@ -1334,7 +1437,11 @@ if (Meteor.isServer) (function () {
       var resetPasswordToken = match[1];
 
       var newEmail = Random.id() + '-new@example.com';
-      Meteor.users.update(userId, {$set: {"emails.0.address": newEmail}});
+
+      Meteor.dataProvider.updateEmail(userId, newEmail);
+      // Meteor.users.update(userId, {$set: {"emails.0.address": newEmail}});
+
+
 
       test.throws(function () {
         Meteor.call("resetPassword", resetPasswordToken, "new-password");
@@ -1343,6 +1450,46 @@ if (Meteor.isServer) (function () {
         Meteor.call("login", {user: {username: username}, password: "new-password"});
       }, /Incorrect password/);
     });
+
+  Tinytest.add(
+      'passwords - compatibility with mongo provider - reset password doesn\t work if email changed after email sent',
+      function (test) {
+        var username = Random.id();
+        var email = username + '-intercept@example.com';
+
+        var userId = Accounts.createUser({
+          username: username,
+          email: email,
+          password: "old-password"
+        });
+
+        var user = Meteor.users.findById(userId);
+
+        Accounts.sendResetPasswordEmail(userId, email);
+
+        var resetPasswordEmailOptions =
+            Meteor.call("getInterceptedEmails", email)[0];
+
+        var re = new RegExp(Meteor.absoluteUrl() + "#/reset-password/(\\S*)");
+        var match = resetPasswordEmailOptions.text.match(re);
+        test.isTrue(match);
+        var resetPasswordToken = match[1];
+
+        var newEmail = Random.id() + '-new@example.com';
+
+        Meteor.users.updateEmail(userId, newEmail);
+        // Meteor.users.update(userId, {$set: {"emails.0.address": newEmail}});
+
+
+
+        test.throws(function () {
+          Meteor.call("resetPassword", resetPasswordToken, "new-password");
+        }, /Token has invalid email address/);
+        test.throws(function () {
+          Meteor.call("login", {user: {username: username}, password: "new-password"});
+        }, /Incorrect password/);
+      });
+
 
   // We should be able to change the username
   Tinytest.add("passwords - change username", function (test) {
