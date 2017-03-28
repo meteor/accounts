@@ -7,6 +7,9 @@
  * - connection {Object} Optional DDP connection to reuse.
  * - ddpUrl {String} Optional URL for creating a new DDP connection.
  */
+
+import {ModelUsers} from './model_users';
+
 export class AccountsCommon {
   constructor(options) {
     // Currently this is read directly by packages like accounts-password
@@ -20,10 +23,15 @@ export class AccountsCommon {
 
     // There is an allow call in accounts_server.js that restricts writes to
     // this collection.
+
+/*
     this.users = new Mongo.Collection("users", {
       _preventAutopublish: true,
       connection: this.connection
     });
+*/
+
+    this.users = new ModelUsers(this.connection);
 
     // Callback exceptions are printed with Meteor._debug and ignored.
     this._onLoginHook = new Hook({
@@ -51,7 +59,7 @@ export class AccountsCommon {
    */
   user() {
     var userId = this.userId();
-    return userId ? this.users.findOne(userId) : null;
+    return userId ? this.users.findSingle(userId) : null;
   }
 
   // Set up config for the accounts system. Call this on both the client

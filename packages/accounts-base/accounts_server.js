@@ -1,11 +1,10 @@
 var crypto = Npm.require('crypto');
-
 import {AccountsCommon} from "./accounts_common.js";
 
 /**
  * @summary Constructor for the `Accounts` namespace on the server.
  * @locus Server
- * @class AccountsServer
+ * @class
  * @extends AccountsCommon
  * @instancename accountsServer
  * @param {Object} server A server object such as `Meteor.server`.
@@ -33,6 +32,7 @@ export class AccountsServer extends AccountsCommon {
       otherUsers: ['profile', 'username']
     };
     this._initServerPublications();
+
 
     // connectionId -> {connection, loginToken}
     this._accountData = {};
@@ -82,6 +82,7 @@ export class AccountsServer extends AccountsCommon {
       throw new Error("Meteor.userId can only be invoked in method calls. Use this.userId in publish functions.");
     return currentInvocation.userId;
   }
+
 
   ///
   /// LOGIN HOOKS
@@ -161,7 +162,6 @@ Ap._validateLogin = function (connection, attempt) {
   });
 };
 
-
 Ap._successfulLogin = function (connection, attempt) {
   this._onLoginHook.each(function (callback) {
     callback(cloneAttemptWithConnection(connection, attempt));
@@ -175,6 +175,7 @@ Ap._failedLogin = function (connection, attempt) {
     return true;
   });
 };
+
 
 
 ///
@@ -319,7 +320,7 @@ Ap._attemptLogin = function (
 
   var user;
   if (result.userId)
-    user = this.users.findOne(result.userId);
+    user = this.users.findSingle(result.userId);
 
   var attempt = {
     type: result.type || "unknown",
@@ -398,7 +399,7 @@ Ap._reportLoginFailure = function (
   };
 
   if (result.userId) {
-    attempt.user = this.users.findOne(result.userId);
+    attempt.user = this.users.findSingle(result.userId);
   }
 
   this._validateLogin(methodInvocation.connection, attempt);
@@ -489,6 +490,8 @@ Ap._runLoginHandlers = function (methodInvocation, options) {
 // in the process of becoming associated with hashed tokens and then
 // they'll get closed.
 Ap.destroyToken = function (userId, loginToken) {
+  this.users.destroyToken(userId, loginToken);
+/*
   this.users.update(userId, {
     $pull: {
       "services.resume.loginTokens": {
@@ -499,6 +502,7 @@ Ap.destroyToken = function (userId, loginToken) {
       }
     }
   });
+  */
 };
 
 Ap._initServerMethods = function () {
@@ -534,6 +538,7 @@ Ap._initServerMethods = function () {
     this.setUserId(null);
   };
 
+
   // Delete all the current user's tokens and close all open connections logged
   // in as this user. Returns a fresh new login token that this client can
   // use. Tests set Accounts._noConnectionCloseDelayForTest to delete tokens
@@ -553,11 +558,9 @@ Ap._initServerMethods = function () {
   // @returns {Object} Object with token and tokenExpires keys.
   methods.logoutOtherClients = function () {
     var self = this;
-    var user = accounts.users.findOne(self.userId, {
-      fields: {
-        "services.resume.loginTokens": true
-      }
-    });
+  //  accounts.users.logoutOtherClients(self.userId);
+
+    var user = accounts.users.findSingleLoggedIn(self.userId);
     if (user) {
       // Save the current tokens in the database to be deleted in
       // CONNECTION_CLOSE_DELAY_MS ms. This gives other connections in the
@@ -567,6 +570,9 @@ Ap._initServerMethods = function () {
       var tokens = user.services.resume.loginTokens;
       var newToken = accounts._generateStampedLoginToken();
       var userId = self.userId;
+
+      accounts.users.saveTokenAndDeleteLater(userId, tokens, accounts._hashStampedToken(newToken));
+      /*
       accounts.users.update(userId, {
         $set: {
           "services.resume.loginTokensToDelete": tokens,
@@ -574,6 +580,7 @@ Ap._initServerMethods = function () {
         },
         $push: { "services.resume.loginTokens": accounts._hashStampedToken(newToken) }
       });
+      */
       Meteor.setTimeout(function () {
         // The observe on Meteor.users will take care of closing the connections
         // associated with `tokens`.
@@ -590,6 +597,7 @@ Ap._initServerMethods = function () {
     } else {
       throw new Meteor.Error("You are not logged in.");
     }
+
   };
 
   // Generates a new login token with the same expiration as the
@@ -602,6 +610,12 @@ Ap._initServerMethods = function () {
   //   tokenExpires: <expiration date> }.
   methods.getNewToken = function () {
     var self = this;
+    var newStampedToken = accounts.users.getNewToken(self.userId, accounts._getLoginToken(self.connection.id),
+    accounts._generateStampedLoginToken());
+    accounts._insertLoginToken(self.userId, newStampedToken);
+    return accounts._loginUser(self, self.userId, newStampedToken);
+/*
+
     var user = accounts.users.findOne(self.userId, {
       fields: { "services.resume.loginTokens": 1 }
     });
@@ -626,6 +640,7 @@ Ap._initServerMethods = function () {
     newStampedToken.when = currentStampedToken.when;
     accounts._insertLoginToken(self.userId, newStampedToken);
     return accounts._loginUser(self, self.userId, newStampedToken);
+    */
   };
 
   // Removes all tokens except the token associated with the current
@@ -633,6 +648,10 @@ Ap._initServerMethods = function () {
   // in. Returns nothing on success.
   methods.removeOtherTokens = function () {
     var self = this;
+    var loginToken = accounts._getLoginToken(self.connection.id);
+    // console.log("login Token is " + loginToken);
+    accounts.users.removeOtherTokens(self.userId, loginToken);
+/*
     if (! self.userId) {
       throw new Meteor.Error("You are not logged in.");
     }
@@ -642,6 +661,7 @@ Ap._initServerMethods = function () {
         "services.resume.loginTokens": { hashedToken: { $ne: currentToken } }
       }
     });
+    */
   };
 
   // Allow a one-time configuration for a login service. Modifications
@@ -700,16 +720,9 @@ Ap._initServerPublications = function () {
 
   // Publish the current user's record to the client.
   accounts._server.publish(null, function () {
+
     if (this.userId) {
-      return accounts.users.find({
-        _id: this.userId
-      }, {
-        fields: {
-          profile: 1,
-          username: 1,
-          emails: 1
-        }
-      });
+      return accounts.users.findCurrentUser(this.userId);
     } else {
       return null;
     }
@@ -818,6 +831,8 @@ Ap._hashStampedToken = function (stampedToken) {
 // logging in simultaneously has already inserted the new hashed
 // token.
 Ap._insertHashedLoginToken = function (userId, hashedToken, query) {
+  this.users.insertHLoginToken(userId, hashedToken, query);
+/*
   query = query ? _.clone(query) : {};
   query._id = userId;
   this.users.update(query, {
@@ -825,6 +840,7 @@ Ap._insertHashedLoginToken = function (userId, hashedToken, query) {
       "services.resume.loginTokens": hashedToken
     }
   });
+  */
 };
 
 
@@ -839,11 +855,15 @@ Ap._insertLoginToken = function (userId, stampedToken, query) {
 
 
 Ap._clearAllLoginTokens = function (userId) {
+
+  this.users.clearAllLoginTokens(userId);
+  /*
   this.users.update(userId, {
     $set: {
       'services.resume.loginTokens': []
     }
   });
+  */
 };
 
 // test hook
@@ -869,6 +889,8 @@ Ap._removeTokenFromConnection = function (connectionId) {
     }
   }
 };
+
+
 
 Ap._getLoginToken = function (connectionId) {
   return this._getAccountData(connectionId, 'loginToken');
@@ -906,10 +928,12 @@ Ap._setLoginToken = function (userId, connection, newToken) {
         return;
       }
 
+
       var foundMatchingUser;
       // Because we upgrade unhashed login tokens to hashed tokens at
       // login time, sessions will only be logged in with a hashed
       // token. Thus we only need to observe hashed tokens here.
+      /*
       var observe = self.users.find({
         _id: userId,
         'services.resume.loginTokens.hashedToken': newToken
@@ -924,6 +948,32 @@ Ap._setLoginToken = function (userId, connection, newToken) {
           // lying around.
         }
       });
+      */
+
+      var mongoUsersInstance = self.users.getMongoUsersForReactiveWork();
+
+      if (!mongoUsersInstance) {
+        // throw an error, as this is not mongo backed
+        throw new Meteor.Error(403, "Database provider does not support reactivity.");
+      }
+
+
+      var observe = mongoUsersInstance.find({
+        _id: userId,
+        'services.resume.loginTokens.hashedToken': newToken
+      }, { fields: { _id: 1 } }).observeChanges({
+        added: function () {
+          foundMatchingUser = true;
+        },
+        removed: function () {
+          connection.close();
+          // The onClose callback for the connection takes care of
+          // cleaning up the observe handle and any other state we have
+          // lying around.
+        }
+      });
+
+
 
       // If the user ran another login or logout command we were waiting for the
       // defer or added to fire (ie, another call to _setLoginToken occurred),
@@ -964,14 +1014,16 @@ function defaultResumeLoginHandler(accounts, options) {
     return undefined;
 
   check(options.resume, String);
+  // console.log("in default RESUME handler (account_server.js)  -> options is " + JSON.stringify(options));
 
   var hashedToken = accounts._hashLoginToken(options.resume);
 
   // First look for just the new-style hashed login token, to avoid
   // sending the unhashed token to the database in a query if we don't
   // need to.
-  var user = accounts.users.findOne(
-    {"services.resume.loginTokens.hashedToken": hashedToken});
+
+  //  var user = accounts.users.findOne(
+  var user = accounts.users.findUserWithNewtoken( hashedToken);
 
   if (! user) {
     // If we didn't find the hashed login token, try also looking for
@@ -979,12 +1031,10 @@ function defaultResumeLoginHandler(accounts, options) {
     // the old-style token OR the new-style token, because another
     // client connection logging in simultaneously might have already
     // converted the token.
-    user = accounts.users.findOne({
-      $or: [
-        {"services.resume.loginTokens.hashedToken": hashedToken},
-        {"services.resume.loginTokens.token": options.resume}
-      ]
-    });
+    // user = accounts.users.findUserWithNewOrOld(hashedToken);
+
+     user = accounts.users.findUserWithNewOrOld(hashedToken, options.resume);
+    // console.log("in default RESUME, cannot find new token - trying both => user is " + JSON.stringify(user));
   }
 
   if (! user)
@@ -1022,6 +1072,8 @@ function defaultResumeLoginHandler(accounts, options) {
     // after we read it).  Using $addToSet avoids getting an index
     // error if another client logging in simultaneously has already
     // inserted the new hashed token.
+    accounts.users.addNewHashedTokenIfOldUnhashedStillExists(user._id, options.resume, hashedToken, token.when);
+    /*
     accounts.users.update(
       {
         _id: user._id,
@@ -1034,15 +1086,21 @@ function defaultResumeLoginHandler(accounts, options) {
         }
       }}
     );
+    */
 
     // Remove the old token *after* adding the new, since otherwise
     // another client trying to login between our removing the old and
     // adding the new wouldn't find a token to login with.
+    accounts.users.removeOldTokenAfterAddingNew(user._id, options.resume);
+    /*
     accounts.users.update(user._id, {
       $pull: {
         "services.resume.loginTokens": { "token": options.resume }
       }
     });
+    */
+    var tpSingle = accounts.users.findSingle(user._id);
+    // console.log("AFTER REPLACEMENT - here is what it looks like " + JSON.stringify(tpSingle));
   }
 
   return {
@@ -1084,6 +1142,9 @@ Ap._expireTokens = function (oldestValidDate, userId) {
 
   oldestValidDate = oldestValidDate ||
     (new Date(new Date() - tokenLifetimeMs));
+
+  this.users.expireTokens(oldestValidDate, userId);
+  /*
   var userFilter = userId ? {_id: userId} : {};
 
 
@@ -1104,9 +1165,10 @@ Ap._expireTokens = function (oldestValidDate, userId) {
       }
     }
   }, { multi: true });
+  */
   // The observe on Meteor.users will take care of closing connections for
   // expired tokens.
-};
+  };
 
 // @override from accounts_common.js
 Ap.config = function (options) {
@@ -1245,7 +1307,11 @@ Ap.insertUserDoc = function (options, user) {
       throw new Meteor.Error(403, "User validation failed");
   });
 
-  var userId;
+//  var userId;
+
+  return this.users.insertUser(fullUser);
+
+  /*
   try {
     userId = this.users.insert(fullUser);
   } catch (e) {
@@ -1261,6 +1327,7 @@ Ap.insertUserDoc = function (options, user) {
     throw e;
   }
   return userId;
+  */
 };
 
 // Helper function: returns false if email does not match company domain from
@@ -1321,6 +1388,7 @@ Ap.updateOrCreateUserFromExternalService = function (
   serviceData,
   options
 ) {
+
   options = _.clone(options || {});
 
   if (serviceName === "password" || serviceName === "resume")
@@ -1350,7 +1418,8 @@ Ap.updateOrCreateUserFromExternalService = function (
     selector[serviceIdKey] = serviceData.id;
   }
 
-  var user = this.users.findOne(selector);
+  // ignoring Twitter for now
+  var user = this.users.findByService(selector);
 
   if (user) {
     pinEncryptedFieldsToUser(serviceData, user._id);
@@ -1367,9 +1436,7 @@ Ap.updateOrCreateUserFromExternalService = function (
 
     // XXX Maybe we should re-use the selector above and notice if the update
     //     touches nothing?
-    this.users.update(user._id, {
-      $set: setAttrs
-    });
+    this.users.updateAttributes(user._id, setAttrs);
 
     return {
       type: serviceName,
@@ -1386,12 +1453,15 @@ Ap.updateOrCreateUserFromExternalService = function (
       userId: this.insertUserDoc(options, user)
     };
   }
-};
+
+}
 
 function setupUsersCollection(users) {
+  users.setupUsersCollection();
   ///
   /// RESTRICTING WRITES TO USER OBJECTS
   ///
+  /*
   users.allow({
     // clients can modify the profile field of their own document, and
     // nothing else.
@@ -1424,6 +1494,7 @@ function setupUsersCollection(users) {
                      { sparse: 1 });
   // For expiring login tokens
   users._ensureIndex("services.resume.loginTokens.when", { sparse: 1 });
+  */
 }
 
 ///
@@ -1431,6 +1502,9 @@ function setupUsersCollection(users) {
 ///
 
 Ap._deleteSavedTokensForUser = function (userId, tokensToDelete) {
+
+  this.users.deleteSavedTokens(userId, tokensToDelete);
+/*
   if (tokensToDelete) {
     this.users.update(userId, {
       $unset: {
@@ -1442,6 +1516,7 @@ Ap._deleteSavedTokensForUser = function (userId, tokensToDelete) {
       }
     });
   }
+  */
 };
 
 Ap._deleteSavedTokensForAllUsersOnStartup = function () {
@@ -1454,6 +1529,9 @@ Ap._deleteSavedTokensForAllUsersOnStartup = function () {
   // that would give a lot of power to an attacker with a stolen login
   // token and the ability to crash the server.
   Meteor.startup(function () {
+
+    self.users.deleteSavedTokensforAllUsers();
+    /*
     self.users.find({
       "services.resume.haveLoginTokensToDelete": true
     }, {
@@ -1464,5 +1542,7 @@ Ap._deleteSavedTokensForAllUsersOnStartup = function () {
         user.services.resume.loginTokensToDelete
       );
     });
+    */
   });
 };
+
